@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Tofu Drift 3D - 藤原とうふ店</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        overflow: hidden;
+        font-family: 'Courier New', monospace;
+        background: #1a0a2e;
+      }
+      
+      #app {
+        width: 100vw;
+        height: 100vh;
+      }
+      
+      #ui {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        color: white;
+        font-size: 18px;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        display: none;
+        z-index: 100;
+      }
+      
+      #score, #tofu {
+        margin-bottom: 10px;
+      }
+      
+      #menu {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background: rgba(26, 10, 46, 0.9);
+        color: white;
+        text-align: center;
+        z-index: 200;
+      }
+      
+      #menu h1 {
+        font-size: 48px;
+        margin-bottom: 10px;
+        text-shadow: 0 0 20px #ff6b6b, 0 0 40px #ff6b6b;
+        letter-spacing: 4px;
+      }
+      
+      #menu .japanese {
+        font-size: 24px;
+        color: #ffcc00;
+        margin-bottom: 30px;
+        text-shadow: 0 0 10px #ffcc00;
+      }
+      
+      #menu .subtitle {
+        font-size: 18px;
+        color: #aaa;
+        margin-bottom: 20px;
+        animation: pulse 2s infinite;
+      }
+      
+      #menu .controls {
+        font-size: 14px;
+        color: #666;
+        margin-top: 20px;
+      }
+      
+      #final-score {
+        font-size: 20px;
+        color: #44ff44;
+        margin-bottom: 30px;
+      }
+      
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    
+    <div id="ui">
+      <div id="score">Distance: 0m</div>
+      <div id="tofu">Tofu: 100%</div>
+    </div>
+    
+    <div id="menu">
+      <h1>TOFU DRIFT</h1>
+      <div class="japanese">藤原とうふ店 (自家用)</div>
+      <div class="subtitle">Click or Press SPACE to Start</div>
+      <div id="final-score"></div>
+      <div class="controls">
+        ← → or A/D to steer | Don't spill the tofu!
+      </div>
+    </div>
+    
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
