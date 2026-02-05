@@ -11,10 +11,7 @@ class GameState {
     this.isPlaying = false;
     this.isGameOver = false;
     this.score = 0;
-    this.distance = 0;
-    this.tofuSpill = 0;
     this.speed = GAME.PLAYER_SPEED;
-    this.lateralVelocity = 0;
   }
 
   start() {
@@ -32,30 +29,6 @@ class GameState {
   addScore(points) {
     this.score += points;
     eventBus.emit(EVENTS.SCORE_UPDATE, { score: this.score });
-  }
-
-  addDistance(d) {
-    this.distance += d;
-    // Score based on distance
-    if (Math.floor(this.distance) % 10 === 0) {
-      this.addScore(1);
-    }
-  }
-
-  spillTofu(amount) {
-    this.tofuSpill = Math.min(GAME.TOFU_MAX_SPILL, this.tofuSpill + amount);
-    eventBus.emit(EVENTS.TOFU_SPILL, { spill: this.tofuSpill });
-    if (this.tofuSpill >= GAME.TOFU_MAX_SPILL) {
-      this.gameOver();
-    }
-  }
-
-  updateLateralVelocity(velocity) {
-    this.lateralVelocity = velocity;
-    // Spill tofu on hard turns
-    if (Math.abs(velocity) > GAME.TOFU_SPILL_THRESHOLD) {
-      this.spillTofu(Math.abs(velocity) * 0.5);
-    }
   }
 }
 

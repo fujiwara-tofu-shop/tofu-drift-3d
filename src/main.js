@@ -141,15 +141,6 @@ function createCar() {
   roof.position.z = -0.2;
   carGroup.add(roof);
   
-  // Tofu box on roof
-  const tofuGeo = new THREE.BoxGeometry(0.4, 0.3, 0.5);
-  const tofuMat = new THREE.MeshStandardMaterial({ color: COLORS.TOFU_BOX });
-  const tofuBox = new THREE.Mesh(tofuGeo, tofuMat);
-  tofuBox.position.y = GAME.PLAYER_SIZE.height + 0.5;
-  tofuBox.position.z = -0.3;
-  tofuBox.name = 'tofuBox';
-  carGroup.add(tofuBox);
-  
   // Headlights
   const lightGeo = new THREE.BoxGeometry(0.2, 0.15, 0.05);
   const lightMat = new THREE.MeshBasicMaterial({ color: COLORS.HEADLIGHT });
@@ -235,6 +226,7 @@ function createObstacle(type) {
   }
   
   obstacle.userData.type = type;
+  obstacle.userData.isObstacle = true;
   return obstacle;
 }
 
@@ -249,6 +241,52 @@ function spawnObstacle() {
   
   scene.add(obstacle);
   obstacles.push(obstacle);
+}
+
+// Tofu collectibles
+const tofuBlocks = [];
+
+function createTofuBlock() {
+  const tofu = new THREE.Group();
+  
+  // Main tofu block
+  const tofuGeo = new THREE.BoxGeometry(0.5, 0.4, 0.5);
+  const tofuMat = new THREE.MeshStandardMaterial({ 
+    color: COLORS.TOFU_BOX,
+    emissive: 0x443322,
+    emissiveIntensity: 0.2
+  });
+  const block = new THREE.Mesh(tofuGeo, tofuMat);
+  block.position.y = 0.3;
+  tofu.add(block);
+  
+  // Glow ring
+  const ringGeo = new THREE.RingGeometry(0.4, 0.5, 16);
+  const ringMat = new THREE.MeshBasicMaterial({ 
+    color: 0xffdd88, 
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.6
+  });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.05;
+  tofu.add(ring);
+  
+  tofu.userData = { radius: 0.4, isTofu: true };
+  return tofu;
+}
+
+function spawnTofu() {
+  const tofu = createTofuBlock();
+  
+  // Random x position on road, avoiding edges
+  tofu.position.x = (Math.random() - 0.5) * (GAME.ROAD_WIDTH - 3);
+  tofu.position.z = -GAME.ROAD_LENGTH / 2;
+  tofu.userData.speed = GAME.OBSTACLE_MIN_SPEED + Math.random() * 0.1;
+  
+  scene.add(tofu);
+  tofuBlocks.push(tofu);
 }
 
 // Particles (speed lines)
@@ -322,35 +360,23 @@ document.addEventListener('click', () => {
 // UI
 const ui = document.getElementById('ui');
 const scoreEl = document.getElementById('score');
-const tofuEl = document.getElementById('tofu');
 const menuEl = document.getElementById('menu');
 const finalScoreEl = document.getElementById('final-score');
 
 eventBus.on(EVENTS.SCORE_UPDATE, ({ score }) => {
-  scoreEl.textContent = `Distance: ${score}m`;
-  
-  // Update OGP points display
-  if (ogp && ogpReady) {
-    ogp.addPoints(1);
-  }
-});
-
-eventBus.on(EVENTS.TOFU_SPILL, ({ spill }) => {
-  const pct = Math.round((1 - spill / GAME.TOFU_MAX_SPILL) * 100);
-  tofuEl.textContent = `Tofu: ${pct}%`;
-  tofuEl.style.color = pct < 30 ? '#ff4444' : pct < 60 ? '#ffaa00' : '#44ff44';
+  scoreEl.textContent = `Tofu: ${score}`;
 });
 
 eventBus.on(EVENTS.GAME_START, () => {
   menuEl.style.display = 'none';
   ui.style.display = 'block';
-  scoreEl.textContent = 'Distance: 0m';
-  tofuEl.textContent = 'Tofu: 100%';
-  tofuEl.style.color = '#44ff44';
+  scoreEl.textContent = 'Tofu: 0';
   
-  // Clear obstacles
+  // Clear obstacles and tofu
   obstacles.forEach(o => scene.remove(o));
   obstacles.length = 0;
+  tofuBlocks.forEach(t => scene.remove(t));
+  tofuBlocks.length = 0;
   
   // Reset player position
   player.position.x = 0;
@@ -358,8 +384,8 @@ eventBus.on(EVENTS.GAME_START, () => {
 });
 
 eventBus.on(EVENTS.GAME_OVER, async ({ score }) => {
-  finalScoreEl.textContent = `You delivered ${score}m before spilling!`;
-  menuEl.querySelector('h1').textContent = 'GAME OVER';
+  finalScoreEl.textContent = `You collected ${score} tofu!`;
+  menuEl.querySelector('h1').textContent = 'CRASHED!';
   menuEl.querySelector('.subtitle').textContent = 'Click/Tap to try again';
   menuEl.style.display = 'flex';
   
@@ -374,15 +400,15 @@ eventBus.on(EVENTS.GAME_OVER, async ({ score }) => {
 });
 
 // Collision detection
-function checkCollision(obstacle) {
-  const dx = player.position.x - obstacle.position.x;
-  const dz = player.position.z - obstacle.position.z;
+function checkCollision(obj) {
+  const dx = player.position.x - obj.position.x;
+  const dz = player.position.z - obj.position.z;
   const distance = Math.sqrt(dx * dx + dz * dz);
   
   const playerRadius = GAME.PLAYER_SIZE.width / 2;
-  const obstacleRadius = obstacle.userData.radius || 0.5;
+  const objRadius = obj.userData.radius || 0.5;
   
-  return distance < (playerRadius + obstacleRadius);
+  return distance < (playerRadius + objRadius);
 }
 
 // Camera setup
@@ -408,19 +434,14 @@ function animate() {
     // Car tilt on turn
     player.rotation.z = THREE.MathUtils.lerp(player.rotation.z, -lateralVel * 3, 0.1);
     
-    // Tofu box wobble
-    const tofuBox = player.getObjectByName('tofuBox');
-    if (tofuBox) {
-      tofuBox.rotation.z = Math.sin(frameCount * 0.3) * Math.abs(lateralVel) * 0.5;
-    }
-    
-    // Update game state
-    gameState.updateLateralVelocity(lateralVel);
-    gameState.addDistance(gameState.speed);
-    
     // Spawn obstacles
     if (frameCount % GAME.OBSTACLE_SPAWN_RATE === 0) {
       spawnObstacle();
+    }
+    
+    // Spawn tofu blocks
+    if (frameCount % 45 === 0) { // More frequent than obstacles
+      spawnTofu();
     }
     
     // Update obstacles
@@ -435,15 +456,48 @@ function animate() {
         continue;
       }
       
-      // Collision check
+      // Collision = game over
       if (checkCollision(obs)) {
-        gameState.spillTofu(30);
-        scene.remove(obs);
-        obstacles.splice(i, 1);
-        
         // Screen shake
-        camera.position.x = (Math.random() - 0.5) * 0.3;
-        setTimeout(() => camera.position.x = 0, 100);
+        camera.position.x = (Math.random() - 0.5) * 0.5;
+        camera.position.y = GAME.CAMERA_HEIGHT + (Math.random() - 0.5) * 0.3;
+        setTimeout(() => {
+          camera.position.x = 0;
+          camera.position.y = GAME.CAMERA_HEIGHT;
+        }, 150);
+        
+        gameState.gameOver();
+        return;
+      }
+    }
+    
+    // Update tofu blocks
+    for (let i = tofuBlocks.length - 1; i >= 0; i--) {
+      const tofu = tofuBlocks[i];
+      tofu.position.z += tofu.userData.speed;
+      
+      // Spin animation
+      tofu.rotation.y += 0.05;
+      
+      // Remove if past player
+      if (tofu.position.z > 10) {
+        scene.remove(tofu);
+        tofuBlocks.splice(i, 1);
+        continue;
+      }
+      
+      // Collect tofu
+      if (checkCollision(tofu)) {
+        scene.remove(tofu);
+        tofuBlocks.splice(i, 1);
+        
+        // Add points
+        gameState.addScore(1);
+        
+        // OGP points
+        if (ogp && ogpReady) {
+          ogp.addPoints(1);
+        }
       }
     }
     
