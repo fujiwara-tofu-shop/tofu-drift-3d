@@ -4,6 +4,32 @@ import { GAME, COLORS } from './Constants.js';
 import { eventBus, EVENTS } from './EventBus.js';
 import { gameState } from './GameState.js';
 
+// OpenGameProtocol SDK integration
+let ogp = null;
+let ogpReady = false;
+
+if (typeof OpenGameSDK !== 'undefined') {
+  ogp = new OpenGameSDK({
+    ui: { usePointsWidget: true, theme: 'dark' },
+    logLevel: 1,
+  });
+  
+  ogp.on('OnReady', () => {
+    console.log('OGP SDK ready');
+    ogpReady = true;
+  });
+  
+  ogp.on('SavePointsSuccess', () => {
+    console.log('Score saved to OGP!');
+  });
+  
+  ogp.on('SavePointsFailed', () => {
+    console.log('Failed to save score to OGP');
+  });
+  
+  ogp.init({ gameId: 'tofu-drift-3d' });
+}
+
 // Scene setup
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -302,6 +328,11 @@ const finalScoreEl = document.getElementById('final-score');
 
 eventBus.on(EVENTS.SCORE_UPDATE, ({ score }) => {
   scoreEl.textContent = `Distance: ${score}m`;
+  
+  // Update OGP points display
+  if (ogp && ogpReady) {
+    ogp.addPoints(1);
+  }
 });
 
 eventBus.on(EVENTS.TOFU_SPILL, ({ spill }) => {
@@ -326,11 +357,20 @@ eventBus.on(EVENTS.GAME_START, () => {
   player.rotation.z = 0;
 });
 
-eventBus.on(EVENTS.GAME_OVER, ({ score }) => {
+eventBus.on(EVENTS.GAME_OVER, async ({ score }) => {
   finalScoreEl.textContent = `You delivered ${score}m before spilling!`;
   menuEl.querySelector('h1').textContent = 'GAME OVER';
   menuEl.querySelector('.subtitle').textContent = 'Click/Tap to try again';
   menuEl.style.display = 'flex';
+  
+  // Save score to OGP
+  if (ogp && ogpReady && score > 0) {
+    try {
+      await ogp.savePoints(score);
+    } catch (err) {
+      console.log('OGP save error:', err);
+    }
+  }
 });
 
 // Collision detection
