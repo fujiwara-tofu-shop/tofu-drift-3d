@@ -246,6 +246,378 @@ function spawnObstacle() {
 // Tofu collectibles
 const tofuBlocks = [];
 
+// Collection effects
+const collectParticles = [];
+
+function createCollectEffect(position) {
+  const particleCount = 20;
+  const particles = [];
+  
+  for (let i = 0; i < particleCount; i++) {
+    const geo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+    const mat = new THREE.MeshBasicMaterial({ 
+      color: Math.random() > 0.5 ? 0xffdd88 : 0xffffff,
+      transparent: true,
+      opacity: 1
+    });
+    const particle = new THREE.Mesh(geo, mat);
+    
+    particle.position.copy(position);
+    particle.position.y = 0.5;
+    
+    // Random velocity
+    particle.userData.velocity = new THREE.Vector3(
+      (Math.random() - 0.5) * 0.3,
+      Math.random() * 0.2 + 0.1,
+      (Math.random() - 0.5) * 0.3
+    );
+    particle.userData.life = 1.0;
+    
+    scene.add(particle);
+    particles.push(particle);
+  }
+  
+  collectParticles.push(...particles);
+}
+
+function createScorePopup(position, points) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffdd44';
+  ctx.font = 'bold 48px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(`+${points}`, 64, 48);
+  
+  const texture = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ 
+    map: texture, 
+    transparent: true,
+    opacity: 1 
+  });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.copy(position);
+  sprite.position.y = 1;
+  sprite.scale.set(1.5, 0.75, 1);
+  sprite.userData.velocity = 0.03;
+  sprite.userData.life = 1.0;
+  
+  scene.add(sprite);
+  collectParticles.push(sprite);
+}
+
+function flashScreen() {
+  const flash = document.getElementById('flash');
+  if (flash) {
+    flash.style.opacity = '0.4';
+    setTimeout(() => flash.style.opacity = '0', 100);
+  }
+}
+
+// Screen shake
+let shakeIntensity = 0;
+let shakeDecay = 0.9;
+
+function triggerShake(intensity = 0.3) {
+  shakeIntensity = intensity;
+}
+
+// Audio context for synthesized sounds
+let audioCtx = null;
+let ambientPlaying = false;
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+// Midnight Tofu Run - Night drive synthwave vibes
+function startAmbientSound() {
+  if (ambientPlaying) return;
+  
+  try {
+    const ctx = initAudio();
+    if (ctx.state === 'suspended') ctx.resume();
+    
+    ambientPlaying = true;
+    
+    const BPM = 82; // Night drive tempo
+    const beatTime = 60 / BPM;
+    const sixteenth = beatTime / 4;
+    
+    // Master gain
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = 0.25;
+    masterGain.connect(ctx.destination);
+    
+    // Kick drum
+    function playKick(time) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.setValueAtTime(150, time);
+      osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
+      gain.gain.setValueAtTime(0.8, time);
+      gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(time);
+      osc.stop(time + 0.3);
+    }
+    
+    // Snare (noise-based)
+    function playSnare(time) {
+      const bufferSize = ctx.sampleRate * 0.15;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 1.5);
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.value = 1000;
+      
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.4, time);
+      gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
+      
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterGain);
+      noise.start(time);
+    }
+    
+    // Hi-hat
+    function playHiHat(time, open = false) {
+      const bufferSize = ctx.sampleRate * (open ? 0.2 : 0.05);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, open ? 0.5 : 2);
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.value = 7000;
+      
+      const gain = ctx.createGain();
+      gain.gain.value = open ? 0.15 : 0.12;
+      
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterGain);
+      noise.start(time);
+    }
+    
+    // Bass synth
+    const bassGain = ctx.createGain();
+    const bassFilter = ctx.createBiquadFilter();
+    bassFilter.type = 'lowpass';
+    bassFilter.frequency.value = 300;
+    bassFilter.Q.value = 5;
+    bassGain.gain.value = 0.35;
+    bassFilter.connect(bassGain);
+    bassGain.connect(masterGain);
+    
+    function playBass(time, freq, duration) {
+      const osc = ctx.createOscillator();
+      const noteGain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.value = freq;
+      noteGain.gain.setValueAtTime(0.5, time);
+      noteGain.gain.setValueAtTime(0.5, time + duration - 0.05);
+      noteGain.gain.exponentialRampToValueAtTime(0.01, time + duration);
+      osc.connect(noteGain);
+      noteGain.connect(bassFilter);
+      osc.start(time);
+      osc.stop(time + duration);
+    }
+    
+    // Lo-fi pad
+    const padGain = ctx.createGain();
+    const padFilter = ctx.createBiquadFilter();
+    padFilter.type = 'lowpass';
+    padFilter.frequency.value = 600;
+    padGain.gain.value = 0.12;
+    padFilter.connect(padGain);
+    padGain.connect(masterGain);
+    
+    const padNotes = [164.81, 196, 246.94, 293.66]; // E3, G3, B3, D4 (Em7)
+    padNotes.forEach(freq => {
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      osc.connect(padFilter);
+      osc.start();
+      
+      const osc2 = ctx.createOscillator();
+      osc2.type = 'triangle';
+      osc2.frequency.value = freq * 1.005; // Slight detune
+      osc2.connect(padFilter);
+      osc2.start();
+    });
+    
+    // Synthwave lead
+    function playLead(time, freq) {
+      const osc = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      osc.type = 'sawtooth';
+      osc2.type = 'sawtooth';
+      osc.frequency.value = freq;
+      osc2.frequency.value = freq * 1.005;
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(3000, time);
+      filter.frequency.exponentialRampToValueAtTime(500, time + beatTime * 2);
+      filter.Q.value = 3;
+      gain.gain.setValueAtTime(0.1, time);
+      gain.gain.exponentialRampToValueAtTime(0.01, time + beatTime * 2);
+      osc.connect(filter);
+      osc2.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterGain);
+      osc.start(time);
+      osc2.start(time);
+      osc.stop(time + beatTime * 2);
+      osc2.stop(time + beatTime * 2);
+    }
+    
+    // Beat pattern - Night drive vibes
+    const bassPattern = [55, 55, 82.41, 73.42, 55, 55, 82.41, 61.74];
+    const leadNotes = [329.63, 392, 493.88, 440, 392, 329.63, 293.66, 329.63];
+    let barIndex = 0;
+    let stepIndex = 0;
+    
+    function scheduleBar(startTime) {
+      if (!ambientPlaying) return;
+      
+      const bassNote = bassPattern[stepIndex % bassPattern.length];
+      
+      // Beat 1 - Kick
+      playKick(startTime);
+      playHiHat(startTime);
+      playBass(startTime, bassNote, beatTime * 0.9);
+      
+      // Synthwave lead every 4 bars
+      if (stepIndex % 4 === 0) {
+        playLead(startTime, leadNotes[(stepIndex / 4) % leadNotes.length]);
+      }
+      
+      // 1-and - Hi-hat
+      playHiHat(startTime + beatTime * 0.5);
+      
+      // Beat 2 - Snare + Hi-hat
+      playSnare(startTime + beatTime);
+      playHiHat(startTime + beatTime);
+      
+      // 2-and - Kick + Hi-hat
+      playKick(startTime + beatTime * 1.5);
+      playHiHat(startTime + beatTime * 1.5);
+      
+      // Beat 3 - Kick + Hi-hat
+      playKick(startTime + beatTime * 2);
+      playHiHat(startTime + beatTime * 2);
+      playBass(startTime + beatTime * 2, bassNote * 1.5, beatTime * 0.9);
+      
+      // 3-and - Hi-hat
+      playHiHat(startTime + beatTime * 2.5);
+      
+      // Beat 4 - Snare + Hi-hat
+      playSnare(startTime + beatTime * 3);
+      playHiHat(startTime + beatTime * 3, true); // Open hat
+      
+      // 4-and - Kick
+      playKick(startTime + beatTime * 3.5);
+      
+      stepIndex++;
+      
+      // Schedule next bar
+      setTimeout(() => {
+        scheduleBar(ctx.currentTime);
+      }, beatTime * 4 * 1000 - 50);
+    }
+    
+    // Start the beat
+    scheduleBar(ctx.currentTime + 0.1);
+    
+  } catch (e) {
+    console.log('Ambient audio error:', e);
+  }
+}
+
+function playCollectSound() {
+  try {
+    const ctx = initAudio();
+    if (ctx.state === 'suspended') ctx.resume();
+    
+    // Create a nice "ding" sound
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    // Quick ascending arpeggio
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+    osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.05); // E5
+    osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.1); // G5
+    
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialDecayTo && gain.gain.exponentialDecayTo(0.01, ctx.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+    
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch (e) {
+    // Audio not supported or blocked
+  }
+}
+
+function playCrashSound() {
+  try {
+    const ctx = initAudio();
+    if (ctx.state === 'suspended') ctx.resume();
+    
+    // Noise burst for crash
+    const bufferSize = ctx.sampleRate * 0.3;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+    }
+    
+    const noise = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    
+    noise.buffer = buffer;
+    filter.type = 'lowpass';
+    filter.frequency.value = 800;
+    
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+    
+    noise.start();
+  } catch (e) {
+    // Audio not supported
+  }
+}
+
 function createTofuBlock() {
   const tofu = new THREE.Group();
   
@@ -333,24 +705,76 @@ document.addEventListener('keyup', (e) => {
   if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
 });
 
-// Touch controls
-let touchStartX = 0;
+// Touch controls - hold left/right side of screen
+let activeTouches = new Map();
+
 document.addEventListener('touchstart', (e) => {
-  touchStartX = e.touches[0].clientX;
-  if (!gameState.isPlaying) gameState.start();
-});
+  e.preventDefault();
+  
+  // Start game on any touch if not playing
+  if (!gameState.isPlaying) {
+    gameState.start();
+    return;
+  }
+  
+  // Track all active touches
+  for (const touch of e.changedTouches) {
+    const x = touch.clientX;
+    const screenHalf = window.innerWidth / 2;
+    activeTouches.set(touch.identifier, x < screenHalf ? 'left' : 'right');
+  }
+  
+  updateTouchDirection();
+}, { passive: false });
 
 document.addEventListener('touchmove', (e) => {
-  const touchX = e.touches[0].clientX;
-  const diff = touchX - touchStartX;
-  keys.left = diff < -20;
-  keys.right = diff > 20;
+  e.preventDefault();
+  
+  // Update touch positions (in case finger slides across center)
+  for (const touch of e.changedTouches) {
+    if (activeTouches.has(touch.identifier)) {
+      const x = touch.clientX;
+      const screenHalf = window.innerWidth / 2;
+      activeTouches.set(touch.identifier, x < screenHalf ? 'left' : 'right');
+    }
+  }
+  
+  updateTouchDirection();
+}, { passive: false });
+
+document.addEventListener('touchend', (e) => {
+  // Remove ended touches
+  for (const touch of e.changedTouches) {
+    activeTouches.delete(touch.identifier);
+  }
+  
+  updateTouchDirection();
 });
 
-document.addEventListener('touchend', () => {
-  keys.left = false;
-  keys.right = false;
+document.addEventListener('touchcancel', (e) => {
+  // Remove cancelled touches
+  for (const touch of e.changedTouches) {
+    activeTouches.delete(touch.identifier);
+  }
+  
+  updateTouchDirection();
 });
+
+function updateTouchDirection() {
+  // Check what sides are being touched
+  let hasLeft = false;
+  let hasRight = false;
+  
+  for (const side of activeTouches.values()) {
+    if (side === 'left') hasLeft = true;
+    if (side === 'right') hasRight = true;
+  }
+  
+  // If touching both sides, cancel out (go straight)
+  // Otherwise, set direction
+  keys.left = hasLeft && !hasRight;
+  keys.right = hasRight && !hasLeft;
+}
 
 // Click to start
 document.addEventListener('click', () => {
@@ -371,6 +795,9 @@ eventBus.on(EVENTS.GAME_START, () => {
   menuEl.style.display = 'none';
   ui.style.display = 'block';
   scoreEl.textContent = 'Tofu: 0';
+  
+  // Start ambient cyberpunk atmosphere
+  startAmbientSound();
   
   // Clear obstacles and tofu
   obstacles.forEach(o => scene.remove(o));
@@ -458,13 +885,8 @@ function animate() {
       
       // Collision = game over
       if (checkCollision(obs)) {
-        // Screen shake
-        camera.position.x = (Math.random() - 0.5) * 0.5;
-        camera.position.y = GAME.CAMERA_HEIGHT + (Math.random() - 0.5) * 0.3;
-        setTimeout(() => {
-          camera.position.x = 0;
-          camera.position.y = GAME.CAMERA_HEIGHT;
-        }, 150);
+        triggerShake(0.8);
+        playCrashSound();
         
         gameState.gameOver();
         return;
@@ -488,6 +910,17 @@ function animate() {
       
       // Collect tofu
       if (checkCollision(tofu)) {
+        // Spawn effects at tofu position before removing
+        createCollectEffect(tofu.position.clone());
+        createScorePopup(tofu.position.clone(), 1);
+        flashScreen();
+        triggerShake(0.15);
+        playCollectSound();
+        
+        // Scale bounce on player car
+        player.scale.set(1.1, 1.1, 1.1);
+        setTimeout(() => player.scale.set(1, 1, 1), 100);
+        
         scene.remove(tofu);
         tofuBlocks.splice(i, 1);
         
@@ -498,6 +931,35 @@ function animate() {
         if (ogp && ogpReady) {
           ogp.addPoints(1);
         }
+      }
+    }
+    
+    // Update collection particles
+    for (let i = collectParticles.length - 1; i >= 0; i--) {
+      const p = collectParticles[i];
+      p.userData.life -= 0.03;
+      
+      if (p.userData.life <= 0) {
+        scene.remove(p);
+        collectParticles.splice(i, 1);
+        continue;
+      }
+      
+      // Update position
+      if (p.userData.velocity instanceof THREE.Vector3) {
+        // Particle burst
+        p.position.add(p.userData.velocity);
+        p.userData.velocity.y -= 0.01; // gravity
+        p.rotation.x += 0.1;
+        p.rotation.y += 0.1;
+      } else {
+        // Score popup - float up
+        p.position.y += p.userData.velocity;
+      }
+      
+      // Fade out
+      if (p.material) {
+        p.material.opacity = p.userData.life;
       }
     }
     
@@ -517,7 +979,18 @@ function animate() {
   }
   
   // Camera follow
-  camera.position.x = THREE.MathUtils.lerp(camera.position.x, player.position.x * 0.3, 0.05);
+  let targetCamX = player.position.x * 0.3;
+  let targetCamY = GAME.CAMERA_HEIGHT;
+  
+  // Apply screen shake
+  if (shakeIntensity > 0.01) {
+    targetCamX += (Math.random() - 0.5) * shakeIntensity;
+    targetCamY += (Math.random() - 0.5) * shakeIntensity * 0.5;
+    shakeIntensity *= shakeDecay;
+  }
+  
+  camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetCamX, 0.1);
+  camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCamY, 0.1);
   
   renderer.render(scene, camera);
 }
