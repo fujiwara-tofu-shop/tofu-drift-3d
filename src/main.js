@@ -425,8 +425,8 @@ function animate() {
   if (gameState.isPlaying) {
     // Player movement
     let lateralVel = 0;
-    if (keys.left) lateralVel = GAME.PLAYER_LATERAL_SPEED;
-    if (keys.right) lateralVel = -GAME.PLAYER_LATERAL_SPEED;
+    if (keys.left) lateralVel = -GAME.PLAYER_LATERAL_SPEED;
+    if (keys.right) lateralVel = GAME.PLAYER_LATERAL_SPEED;
     
     player.position.x += lateralVel;
     player.position.x = Math.max(-GAME.ROAD_WIDTH / 2 + 1, Math.min(GAME.ROAD_WIDTH / 2 - 1, player.position.x));
