@@ -27,7 +27,7 @@ if (typeof OpenGameSDK !== 'undefined') {
     console.log('Failed to save score to OGP');
   });
   
-  ogp.init({ gameId: 'tofu-drift-3d' });
+  ogp.init({ gameId: 'e58f4e5e-1491-430f-8e25-88b04c446123' });
 }
 
 // Scene setup
