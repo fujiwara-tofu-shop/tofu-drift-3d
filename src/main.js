@@ -27,7 +27,7 @@ if (typeof OpenGameSDK !== 'undefined') {
     console.log('Failed to save score to OGP');
   });
   
-  ogp.init({ gameId: 'e58f4e5e-1491-430f-8e25-88b04c446123' });
+  ogp.init({ gameId: 'aa7f99c9-d78d-4f27-9e7d-f61f05d90156' });
 }
 
 // Scene setup
